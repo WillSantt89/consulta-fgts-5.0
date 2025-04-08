@@ -190,16 +190,6 @@ const ConsultaIndividual: React.FC = () => {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-700">
-                        Total
-                      </td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-700">
-                        {result.parcelasjson.reduce((total: number, parcela: any) => total + parcela.amount, 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             </div>
