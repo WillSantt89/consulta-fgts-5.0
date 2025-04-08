@@ -131,9 +131,14 @@ const ConsultaIndividual: React.FC = () => {
                     Nome: {result.nome}
                   </div>
                 )}
-                {result && result.saldo_disponivel && (
+                {temSaldo && result.valorliberado && (
                   <div className="text-md text-gray-800 mt-2">
-                    Saldo: R$ {parseFloat(result.saldo_disponivel).toFixed(2)}
+                    Valor liberado: R$ {parseFloat(result.valorliberado).toFixed(2)}
+                  </div>
+                )}
+                {temSaldo && result.banco && (
+                  <div className="text-md text-gray-800 mt-1">
+                    Banco: {result.banco}
                   </div>
                 )}
               </div>
