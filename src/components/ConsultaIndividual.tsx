@@ -68,8 +68,15 @@ const ConsultaIndividual: React.FC = () => {
     });
   };
   
+  // Verifica se o cliente tem saldo disponível
+  const clienteTemSaldoDisponivel = () => {
+    return result && result.codigo === "SIM";
+  };
+  
   // Renderiza o resultado com base na resposta real da API
   const renderResultado = () => {
+    const temSaldo = clienteTemSaldoDisponivel();
+    
     return (
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -117,17 +124,22 @@ const ConsultaIndividual: React.FC = () => {
               <div>
                 <div className="text-sm text-gray-500">Resultado da Consulta</div>
                 <div className="text-2xl font-bold text-green-600">
-                  {result && result.saldo_disponivel ? 
-                    `R$ ${result.saldo_disponivel.toFixed(2)}` : 
-                    "Sem saldo disponível"}
+                  {temSaldo ? "Cliente com saldo disponível" : "Sem saldo disponível"}
                 </div>
                 {result && result.nome && (
                   <div className="text-sm text-gray-600 mt-1">
                     Nome: {result.nome}
                   </div>
                 )}
+                {result && result.saldo_disponivel && (
+                  <div className="text-md text-gray-800 mt-2">
+                    Saldo: R$ {parseFloat(result.saldo_disponivel).toFixed(2)}
+                  </div>
+                )}
               </div>
-              <div className="rounded-full h-12 w-12 flex items-center justify-center bg-green-100 text-green-700">
+              <div className={`rounded-full h-12 w-12 flex items-center justify-center ${
+                temSaldo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+              }`}>
                 <CheckCircle className="h-6 w-6" />
               </div>
             </div>
