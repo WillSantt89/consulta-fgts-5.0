@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, ChevronUp, ChevronDown, Copy, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { RefreshCw, ChevronUp, ChevronDown, Copy, Search, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
 
 const ConsultaIndividual: React.FC = () => {
   const [cpf, setCpf] = useState('');
@@ -71,6 +71,12 @@ const ConsultaIndividual: React.FC = () => {
   // Verifica se o cliente tem saldo disponível
   const clienteTemSaldoDisponivel = () => {
     return result && result.codigo === "SIM";
+  };
+  
+  // Formata a data para o formato brasileiro
+  const formatarData = (dataString: string) => {
+    const data = new Date(dataString);
+    return data.toLocaleDateString('pt-BR');
   };
   
   // Renderiza o resultado com base na resposta real da API
@@ -149,6 +155,55 @@ const ConsultaIndividual: React.FC = () => {
               </div>
             </div>
           </div>
+          
+          {/* Cronograma de Parcelas */}
+          {temSaldo && result.parcelasjson && result.parcelasjson.length > 0 && (
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <div className="flex items-center mb-3">
+                <Calendar className="h-5 w-5 text-gray-500 mr-2" />
+                <h3 className="text-md font-medium text-gray-700">
+                  Cronograma de Parcelas
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data de Vencimento
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Valor (R$)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {result.parcelasjson.map((parcela: any, index: number) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {formatarData(parcela.dueDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {parcela.amount.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td className="px-6 py-3 text-sm font-medium text-gray-700">
+                        Total
+                      </td>
+                      <td className="px-6 py-3 text-sm font-medium text-gray-700">
+                        {result.parcelasjson.reduce((total: number, parcela: any) => total + parcela.amount, 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
           
           {/* Detalhes completos da resposta da API */}
           {showDetails && (
