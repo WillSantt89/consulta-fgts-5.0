@@ -75,13 +75,56 @@ const ConsultaIndividual: React.FC = () => {
   
   // Formata a data para o formato brasileiro
   const formatarData = (dataString: string) => {
-    const data = new Date(dataString);
-    return data.toLocaleDateString('pt-BR');
+    if (!dataString) return '';
+    
+    // Verifica se a data já está no formato brasileiro (DD/MM/YYYY)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataString)) {
+      return dataString;
+    }
+    
+    // Caso contrário, converte de ISO para formato brasileiro
+    try {
+      const data = new Date(dataString);
+      return data.toLocaleDateString('pt-BR');
+    } catch (e) {
+      return dataString; // Retorna a string original em caso de erro
+    }
+  };
+  
+  // Processa as parcelas para um formato uniforme
+  const processarParcelas = () => {
+    if (!result || !result.parcelasjson || !result.parcelasjson.length) {
+      return [];
+    }
+    
+    // Verifica se estamos lidando com o formato Pine/Facta (dataRepasse_X e valor_X)
+    const primeiroItem = result.parcelasjson[0];
+    const isPineFactaFormat = Object.keys(primeiroItem).some(key => 
+      key.startsWith('dataRepasse_') || key.startsWith('valor_')
+    );
+    
+    if (isPineFactaFormat) {
+      // Formato Pine/Facta
+      return result.parcelasjson.map((parcela: any, index: number) => {
+        const numeroSequencial = index + 1;
+        const dataKey = `dataRepasse_${numeroSequencial}`;
+        const valorKey = `valor_${numeroSequencial}`;
+        
+        return {
+          dueDate: parcela[dataKey] || '',
+          amount: parcela[valorKey] ? parseFloat(parcela[valorKey].replace(',', '.')) : 0
+        };
+      }).filter((parcela: any) => parcela.dueDate && parcela.amount > 0);
+    } else {
+      // Formato padrão (dueDate e amount)
+      return result.parcelasjson;
+    }
   };
   
   // Renderiza o resultado com base na resposta real da API
   const renderResultado = () => {
     const temSaldo = clienteTemSaldoDisponivel();
+    const parcelas = processarParcelas();
     
     return (
       <div className="bg-white rounded-lg shadow">
@@ -157,7 +200,7 @@ const ConsultaIndividual: React.FC = () => {
           </div>
           
           {/* Cronograma de Parcelas */}
-          {temSaldo && result.parcelasjson && result.parcelasjson.length > 0 && (
+          {temSaldo && parcelas.length > 0 && (
             <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <div className="flex items-center mb-3">
                 <Calendar className="h-5 w-5 text-gray-500 mr-2" />
@@ -179,13 +222,15 @@ const ConsultaIndividual: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {result.parcelasjson.map((parcela: any, index: number) => (
+                    {parcelas.map((parcela: any, index: number) => (
                       <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                           {formatarData(parcela.dueDate)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                          {parcela.amount.toFixed(2)}
+                          {parcela.amount && typeof parcela.amount === 'number' 
+                            ? parcela.amount.toFixed(2) 
+                            : '0.00'}
                         </td>
                       </tr>
                     ))}
