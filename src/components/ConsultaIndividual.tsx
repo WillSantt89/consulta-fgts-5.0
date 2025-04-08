@@ -33,10 +33,7 @@ const ConsultaIndividual: React.FC = () => {
       // Preparando o CPF (removendo formatação)
       const cpfNumerico = cpf.replace(/\D/g, '');
       
-      // Simulação de chamada à API (para fins de demonstração)
-      // Em produção, descomente o código abaixo e ajuste conforme necessário
-      
-      /*
+      // Chamada à API de consulta
       const response = await fetch('https://santanacred-n8n-chatwoot.igxlaz.easypanel.host/webhook/consulta', {
         method: 'POST',
         headers: {
@@ -50,31 +47,8 @@ const ConsultaIndividual: React.FC = () => {
       }
       
       const data = await response.json();
-      */
-      
-      // Simulação de resposta para demonstração
-      setTimeout(() => {
-        const mockResult = {
-          cpf: cpfNumerico,
-          nome: "João da Silva",
-          status: "com_saldo",
-          saldo_disponivel: 3245.67,
-          data_nascimento: "15/05/1985",
-          contas: [
-            {
-              banco: "Caixa Econômica Federal",
-              agencia: "1234",
-              conta: "00056789-0",
-              saldo: 3245.67,
-              situacao: "Ativa"
-            }
-          ],
-          ultima_atualizacao: new Date().toISOString()
-        };
-        
-        setResult(mockResult);
-        setIsConsulting(false);
-      }, 1500);
+      setResult(data);
+      setIsConsulting(false);
       
     } catch (err: any) {
       console.error('Erro ao consultar o CPF:', err);
