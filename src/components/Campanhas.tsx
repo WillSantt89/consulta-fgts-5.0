@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Upload, Download, Play, RefreshCcw, Filter, FileText, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, Download, Play, RefreshCcw, Filter, FileText, ChevronUp, ChevronDown, Pause } from 'lucide-react';
 import Papa from 'papaparse';
 
 const Campanhas: React.FC = () => {
@@ -8,9 +8,7 @@ const Campanhas: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [selectedCampanha, setSelectedCampanha] = useState<any>(null);
-  
-  // Simulação de campanhas existentes
-  const campanhas = [
+  const [campanhas, setCampanhas] = useState<any[]>([
     {
       id: 1,
       nome: 'Campanha Janeiro/2023',
@@ -49,8 +47,10 @@ const Campanhas: React.FC = () => {
       processados: 68,
       data: '05/02/2023'
     }
-  ];
-  
+  ]);
+  const [clients, setClients] = useState<any[]>([]); // Simulated "database" for clients
+  const [campaignTimeouts, setCampaignTimeouts] = useState<{ [key: number]: number }>({}); // Store timeouts for pausing
+
   // Dados de exemplo para a visualização detalhada da campanha
   const detalheCampanha = {
     id: 1,
@@ -87,20 +87,110 @@ const Campanhas: React.FC = () => {
     }
   };
   
+  const handleImportClients = () => {
+    if (previewData.length === 0) {
+      alert('Por favor, faça o upload de um arquivo CSV válido.');
+      return;
+    }
+    setClients(previewData);
+    alert('Clientes importados com sucesso!');
+  };
+  
   // Simulação de início de campanha
   const iniciarCampanha = () => {
+    const campanhaNomeInput = document.getElementById('campanha-nome') as HTMLInputElement | null;
+    const campanhaNome = campanhaNomeInput?.value;
+    
+    if (!campanhaNome || campanhaNome.trim() === '') {
+      alert('Por favor, insira um nome para a campanha.');
+      return;
+    }
+    
+    if (clients.length === 0) {
+      alert('Por favor, importe os clientes primeiro.');
+      return;
+    }
+    
+    const newCampanha = {
+      id: campanhas.length + 1,
+      nome: campanhaNome,
+      status: 'pausada', // Inicialmente pausada
+      total: clients.length,
+      processados: 0,
+      data: new Date().toLocaleDateString('pt-BR'),
+      clientes: [...clients] // Save clients to the campaign
+    };
+    
+    setCampanhas([...campanhas, newCampanha]);
     setActiveView('lista');
     
-    // Simulando progresso da campanha
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += 5;
-      setProgress(currentProgress);
-      
-      if (currentProgress >= 100) {
-        clearInterval(interval);
+    // Clear the input and clients after campaign creation
+    if (campanhaNomeInput) {
+      campanhaNomeInput.value = '';
+    }
+    setClients([]);
+    setUploadedFile(null);
+    setPreviewData([]);
+  };
+
+  const runCampaign = (campanhaId: number) => {
+    setCampanhas(prevCampanhas =>
+      prevCampanhas.map(campanha =>
+        campanha.id === campanhaId ? { ...campanha, status: 'em_andamento', processados: 0 } : campanha
+      )
+    );
+
+    const campanha = campanhas.find(c => c.id === campanhaId);
+    if (!campanha || !campanha.clientes) return;
+
+    const totalClientes = campanha.clientes.length;
+    let clientesProcessados = 0;
+    const tempoEntreConsultas = parseInt((document.getElementById('tempo-entre-consultas') as HTMLInputElement)?.value || '500', 10);
+
+    const processClient = (index: number) => {
+      if (index >= campanha.clientes.length) {
+        // Campaign finished
+        setCampanhas(prevCampanhas =>
+          prevCampanhas.map(campanha =>
+            campanha.id === campanhaId ? { ...campanha, status: 'concluido' } : campanha
+          )
+        );
+        return;
       }
-    }, 500);
+
+      // Simulate processing
+      setTimeout(() => {
+        const cliente = campanha.clientes[index];
+        // Simulate a random status
+        const status = ['com_saldo', 'sem_saldo', 'erro'][Math.floor(Math.random() * 3)];
+        // Update client status (in a real app, you'd update the database)
+        // For this simulation, we'll just log it.
+        console.log(`Processando ${cliente.CLIENTE_NOME} - Status: ${status}`);
+        clientesProcessados++;
+
+        setCampanhas(prevCampanhas =>
+          prevCampanhas.map(campanha =>
+            campanha.id === campanhaId ? { ...campanha, processados: clientesProcessados } : campanha
+          )
+        );
+
+        processClient(index + 1);
+      }, tempoEntreConsultas);
+    };
+
+    processClient(0);
+  };
+
+  const handleStartCampanha = (id: number) => {
+    runCampaign(id);
+  };
+
+  const handlePauseCampanha = (id: number) => {
+    setCampanhas(prevCampanhas =>
+      prevCampanhas.map(campanha =>
+        campanha.id === id ? { ...campanha, status: 'pausada' } : campanha
+      )
+    );
   };
   
   // Renderiza lista de campanhas
@@ -142,7 +232,7 @@ const Campanhas: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Data
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium">
                 Ações
               </th>
             </tr>
@@ -161,6 +251,10 @@ const Campanhas: React.FC = () => {
                   ) : campanha.status === 'em_andamento' ? (
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                       Em Andamento ({Math.round((campanha.processados / campanha.total) * 100)}%)
+                    </span>
+                  ) : campanha.status === 'pausada' ? (
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                      Pausada
                     </span>
                   ) : (
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
@@ -193,6 +287,22 @@ const Campanhas: React.FC = () => {
                   >
                     Ver
                   </button>
+                  {campanha.status === 'pausada' && (
+                    <button
+                      onClick={() => handleStartCampanha(campanha.id)}
+                      className="px-2 py-1 text-xs text-white bg-green-500 rounded hover:bg-green-600 mr-1"
+                    >
+                      <Play className="h-3 w-3 inline mr-1" /> Iniciar
+                    </button>
+                  )}
+                  {campanha.status === 'em_andamento' && (
+                    <button
+                      onClick={() => handlePauseCampanha(campanha.id)}
+                      className="px-2 py-1 text-xs text-white bg-yellow-500 rounded hover:bg-yellow-600 mr-1"
+                    >
+                      <Pause className="h-3 w-3 inline mr-1" /> Pausar
+                    </button>
+                  )}
                   <button className="text-gray-600 hover:text-gray-900">
                     Exportar
                   </button>
@@ -302,70 +412,99 @@ const Campanhas: React.FC = () => {
           </div>
         )}
         
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Agendamento
-            </label>
-            <div className="flex items-center">
-              <input
-                type="radio"
-                id="agendamento-imediato"
-                name="agendamento"
-                className="focus:ring-green-500 h-4 w-4 text-green-600 border-gray-300"
-                defaultChecked
-              />
-              <label htmlFor="agendamento-imediato" className="ml-2 block text-sm text-gray-700">
-                Executar imediatamente
-              </label>
-            </div>
-            <div className="flex items-center mt-2">
-              <input
-                type="radio"
-                id="agendamento-programado"
-                name="agendamento"
-                className="focus:ring-green-500 h-4 w-4 text-green-600 border-gray-300"
-              />
-              <label htmlFor="agendamento-programado" className="ml-2 block text-sm text-gray-700">
-                Agendar para data específica
-              </label>
-            </div>
+        {previewData.length > 0 && (
+          <div className="mb-6">
+            <button
+              onClick={handleImportClients}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+            >
+              Importar
+            </button>
           </div>
-          
-          <div>
-            <label htmlFor="tempo-entre-consultas" className="block text-sm font-medium text-gray-700 mb-1">
-              Tempo entre consultas (ms)
-            </label>
-            <input
-              type="number"
-              id="tempo-entre-consultas"
-              className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm py-2 px-3 border"
-              defaultValue="500"
-              min="100"
-              max="5000"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Recomendado: 500ms (consultas muito rápidas podem ser bloqueadas)
-            </p>
-          </div>
-        </div>
+        )}
         
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={() => setActiveView('lista')}
-            className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={iniciarCampanha}
-            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 flex items-center"
-            disabled={!uploadedFile}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Iniciar Campanha
-          </button>
-        </div>
+        {clients.length > 0 && (
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Agendamento
+              </label>
+              <div className="flex items-center">
+                <input
+                  type="radio"
+                  id="agendamento-imediato"
+                  name="agendamento"
+                  className="focus:ring-green-500 h-4 w-4 text-green-600 border-gray-300"
+                  defaultChecked
+                />
+                <label htmlFor="agendamento-imediato" className="ml-2 block text-sm text-gray-700">
+                  Executar imediatamente
+                </label>
+              </div>
+              <div className="flex items-center mt-2">
+                <input
+                  type="radio"
+                  id="agendamento-programado"
+                  name="agendamento"
+                  className="focus:ring-green-500 h-4 w-4 text-green-600 border-gray-300"
+                />
+                <label htmlFor="agendamento-programado" className="ml-2 block text-sm text-gray-700">
+                  Agendar para data específica
+                </label>
+              </div>
+            </div>
+            
+            <div>
+              <label htmlFor="tempo-entre-consultas" className="block text-sm font-medium text-gray-700 mb-1">
+                Tempo entre consultas (ms)
+              </label>
+              <input
+                type="number"
+                id="tempo-entre-consultas"
+                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm py-2 px-3 border"
+                defaultValue="500"
+                min="100"
+                max="5000"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Recomendado: 500ms (consultas muito rápidas podem ser bloqueadas)
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {clients.length > 0 && (
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => setActiveView('lista')}
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={iniciarCampanha}
+              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 flex items-center"
+              disabled={clients.length === 0}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Iniciar Campanha
+            </button>
+          </div>
+        )}
+        
+        {clients.length > 0 && (
+          <div className="flex justify-end space-x-3 mt-4">
+            <button
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 flex items-center"
+              onClick={() => {
+                // TODO: Implement the actual start consultations logic here
+                alert('Iniciar Consultas button clicked.  Implement the logic to start consultations.');
+              }}
+            >
+              Iniciar Consultas
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -455,7 +594,7 @@ const Campanhas: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Última Tentativa
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium">
                   Ações
                 </th>
               </tr>
@@ -496,7 +635,7 @@ const Campanhas: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {resultado.status === 'erro' ? (
                       <button className="text-blue-600 hover:text-blue-900 flex items-center justify-end">
-                        <RefreshCcw className="h-4 w-4 mr-1" />
+                        <RefreshCw className="h-4 w-4 mr-1" />
                         Reprocessar
                       </button>
                     ) : (
