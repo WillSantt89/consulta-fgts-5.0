@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Download, Play, RefreshCcw, Filter, FileText, ChevronUp, ChevronDown } from 'lucide-react';
+import Papa from 'papaparse';
 
 const Campanhas: React.FC = () => {
   const [activeView, setActiveView] = useState('lista'); // 'lista' ou 'nova' ou 'detalhes'
@@ -73,13 +74,16 @@ const Campanhas: React.FC = () => {
     if (file) {
       setUploadedFile(file);
       
-      // Simulando preview de dados do CSV
-      setPreviewData([
-        { nome: 'João da Silva', cpf: '123.456.789-00', telefone: '(11) 98765-4321' },
-        { nome: 'Maria Oliveira', cpf: '987.654.321-00', telefone: '(11) 91234-5678' },
-        { nome: 'José Santos', cpf: '456.789.123-00', telefone: '(11) 95678-1234' },
-        { nome: 'Ana Pereira', cpf: '789.123.456-00', telefone: '(11) 94321-8765' },
-      ]);
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          setPreviewData(results.data);
+        },
+        error: (err) => {
+          console.error("Error parsing CSV:", err);
+          alert("Erro ao processar o arquivo CSV.");
+        }
+      });
     }
   };
   
@@ -279,13 +283,13 @@ const Campanhas: React.FC = () => {
                   {previewData.map((row, index) => (
                     <tr key={index}>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                        {row.nome}
+                        {row['CLIENTE_NOME']}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                        {row.cpf}
+                        {row['CPF']}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                        {row.telefone}
+                        {row['CLIENTE_CELULAR']}
                       </td>
                     </tr>
                   ))}
