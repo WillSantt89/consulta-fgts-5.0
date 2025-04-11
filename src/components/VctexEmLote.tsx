@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-    import { Upload, FileText, AlertCircle, CheckCircle, XCircle, RefreshCw, Code } from 'lucide-react';
+    import { Upload, FileText, AlertCircle, CheckCircle, XCircle, RefreshCw, Code, Info } from 'lucide-react';
     import Papa from 'papaparse';
 
     interface ClienteCSV {
@@ -13,19 +13,31 @@ import React, { useState, useRef, useEffect } from 'react';
       cpf: string[];
     }
 
+    interface ApiResponse {
+      message: string;
+      sessionId: string;
+      batchQueryId: string;
+      batchQueriesLimit: number;
+      batchQueriesToBeDoneOnThisMonth: number;
+      listOfbatchQueriesToBeMadeAtTheEndOfTheDay: string[];
+      protocolo: string;
+    }
+
     const VctexEmLote: React.FC = () => {
       const [file, setFile] = useState<File | null>(null);
       const [isUploading, setIsUploading] = useState(false);
       const [isSending, setIsSending] = useState(false);
-      const [isBatchConsulting, setIsBatchConsulting] = useState(false); // New state
+      const [isBatchConsulting, setIsBatchConsulting] = useState(false);
       const [successMessage, setSuccessMessage] = useState<string | null>(null);
-      const [batchConsultationSuccess, setBatchConsultationSuccess] = useState<boolean>(false); // New state
+      const [batchConsultationSuccess, setBatchConsultationSuccess] = useState<boolean>(false);
       const [parsedData, setParsedData] = useState<ClienteCSV[]>([]);
       const [error, setError] = useState<string | null>(null);
       const [validationErrors, setValidationErrors] = useState<string[]>([]);
       const [filteredClientes, setFilteredClientes] = useState<string[]>([]);
       const [cpfPayload, setCpfPayload] = useState<CpfPayload | null>(null);
+      const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null);
       const fileInputRef = useRef<HTMLInputElement>(null);
+      const [showDetails, setShowDetails] = useState(false);
 
       // Função para validar o formato do arquivo
       const validateFile = (file: File): boolean => {
@@ -62,6 +74,7 @@ import React, { useState, useRef, useEffect } from 'react';
           setValidationErrors([]);
           setSuccessMessage(null);
           setBatchConsultationSuccess(false); // Reset batch consultation status
+          setApiResponse(null); // Reset API response
           // Analisa o arquivo
           parseFile(selectedFile);
         }
@@ -182,6 +195,7 @@ import React, { useState, useRef, useEffect } from 'react';
         setIsSending(false);
         setSuccessMessage(null);
         setBatchConsultationSuccess(false); // Reset batch consultation status
+        setApiResponse(null); // Reset API response
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -198,6 +212,7 @@ import React, { useState, useRef, useEffect } from 'react';
         setError(null);
         setSuccessMessage(null);
         setBatchConsultationSuccess(false); // Reset batch consultation status
+        setApiResponse(null); // Reset API response
 
         try {
           // Enviar os dados para a API de cadastro
@@ -241,6 +256,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
         setIsBatchConsulting(true);
         setError(null); // Reset any previous errors
+        setApiResponse(null); // Reset API response
 
         try {
           const response = await fetch('https://santanacred-n8n-chatwoot.igxlaz.easypanel.host/webhook/vctex/lote', {
@@ -255,8 +271,9 @@ import React, { useState, useRef, useEffect } from 'react';
             throw new Error(`Erro ao consultar CPFs em lote: ${response.status} ${response.statusText}`);
           }
 
-          const data = await response.json();
+          const data: ApiResponse = await response.json();
           console.log('Resposta da API de consulta em lote:', data);
+          setApiResponse(data);
           setBatchConsultationSuccess(true); // Set success state
           setSuccessMessage(prevMessage => prevMessage ? `${prevMessage} e consulta em lote realizada com sucesso!` : 'Consulta em lote realizada com sucesso!');
 
@@ -435,6 +452,49 @@ import React, { useState, useRef, useEffect } from 'react';
                           {JSON.stringify(cpfPayload, null, 2)}
                         </pre>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {apiResponse && (
+                <div className="mt-4 p-3 bg-gray-100 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Dados da Consulta em Lote</h3>
+                    <button
+                      onClick={() => setShowDetails(!showDetails)}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      <div className="flex items-center">
+                        <Info className="h-4 w-4 mr-1" />
+                        {showDetails ? 'Ocultar Detalhes' : 'Ver Detalhes'}
+                      </div>
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-700">
+                    <strong>Mensagem:</strong> {apiResponse.message}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <strong>Protocolo:</strong> {apiResponse.protocolo}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <strong>Batch Query ID:</strong> {apiResponse.batchQueryId}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <strong>Consultas Restantes no Mês:</strong> {apiResponse.batchQueriesToBeDoneOnThisMonth}
+                  </p>
+
+                  {showDetails && (
+                    <div className="mt-2 border-t border-gray-200 pt-2">
+                      <p className="text-xs text-gray-500">
+                        <strong>Session ID:</strong> {apiResponse.sessionId}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <strong>Batch Queries Limit:</strong> {apiResponse.batchQueriesLimit}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        <strong>Lista de IDs para o fim do dia:</strong> {apiResponse.listOfbatchQueriesToBeMadeAtTheEndOfTheDay.join(', ')}
+                      </p>
                     </div>
                   )}
                 </div>
