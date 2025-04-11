@@ -187,7 +187,7 @@ const ConsultaIndividual: React.FC = () => {
                 )}
                 {temSaldo && result.banco && (
                   <div className="text-md text-gray-800 mt-1">
-                    Banco: {result.banco}
+                    Banco: <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">{result.banco}</span>
                   </div>
                 )}
               </div>
