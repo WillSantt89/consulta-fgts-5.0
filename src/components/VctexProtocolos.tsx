@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
-    import { Search, Calendar, RefreshCw, ChevronLeft, ChevronRight, AlertCircle, Filter, X } from 'lucide-react';
+    import { Search, Calendar, RefreshCw, ChevronLeft, ChevronRight, AlertCircle, Filter, X, List, FileText, Copy } from 'lucide-react';
 
     interface Protocolo {
       data: string;
       protocolo: string;
+    }
+
+    interface ConsultaResponse {
+      slc: {
+        body: {
+          cpf: string[];
+        };
+      };
+      resposta: {
+        message: string;
+        batchQueryId: string;
+        batchQueriesLimit: number;
+        batchQueriesToBeDoneOnThisMonth: number;
+        listOfbatchQueriesToBeMadeAtTheEndOfTheDay: string[];
+        [key: string]: any;
+      };
+      [key: string]: any;
     }
 
     const VctexProtocolos: React.FC = () => {
@@ -116,6 +133,131 @@ import React, { useState, useEffect } from 'react';
       // Handle page change
       const handlePageChange = (newPage: number) => {
         setCurrentPage(newPage);
+      };
+      
+      // States for CPF consultation
+      const [consultingProtocolo, setConsultingProtocolo] = useState<string | null>(null);
+      const [consultaResponse, setConsultaResponse] = useState<string[] | null>(null);
+      const [consultaError, setConsultaError] = useState<string | null>(null);
+      const [showCpfsModal, setShowCpfsModal] = useState<boolean>(false);
+      
+      // States for BatchQueryId details
+      const [showBatchQueryModal, setShowBatchQueryModal] = useState<boolean>(false);
+      const [batchQueryDetails, setBatchQueryDetails] = useState<ConsultaResponse['resposta'] | null>(null);
+      const [batchQueryError, setBatchQueryError] = useState<string | null>(null);
+      const [viewingBatchQuery, setViewingBatchQuery] = useState<string | null>(null);
+      
+      // Store the last consulted data to avoid unnecessary API calls
+      const [lastConsultedData, setLastConsultedData] = useState<{ 
+        protocolo: string; 
+        response: ConsultaResponse | null;
+      } | null>(null);
+      
+      // Function to consult CPFs for a specific protocol
+      const consultarCpfs = async (protocolo: string) => {
+        setConsultingProtocolo(protocolo);
+        setConsultaError(null);
+        
+        try {
+          const response = await fetch('https://n8n-queue-2-n8n-webhook.igxlaz.easypanel.host/webhook/vctex/consultalote', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ protocolo })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Erro ao consultar CPFs: ${response.status} ${response.statusText}`);
+          }
+          
+          const data: ConsultaResponse = await response.json();
+          
+          // Store the full response for potential reuse
+          setLastConsultedData({
+            protocolo,
+            response: data
+          });
+          
+          // Extract CPF list from the response
+          if (data.slc && data.slc.body && data.slc.body.cpf && Array.isArray(data.slc.body.cpf)) {
+            setConsultaResponse(data.slc.body.cpf);
+            setShowCpfsModal(true);
+          } else {
+            setConsultaError('Formato de resposta inválido ou nenhum CPF encontrado.');
+          }
+        } catch (err) {
+          console.error('Erro ao consultar CPFs:', err);
+          setConsultaError(err instanceof Error ? err.message : 'Erro ao consultar os CPFs do protocolo');
+        } finally {
+          setConsultingProtocolo(null);
+        }
+      };
+      
+      // Function to copy CPFs to clipboard
+      const copyCpfsToClipboard = () => {
+        if (!consultaResponse) return;
+        
+        const cpfsText = consultaResponse.join('\n');
+        navigator.clipboard.writeText(cpfsText).then(() => {
+          alert('CPFs copiados para a área de transferência!');
+        }).catch(err => {
+          console.error('Erro ao copiar CPFs:', err);
+        });
+      };
+      
+      // Function to view BatchQueryId details
+      const verBatchQueryId = async (protocolo: string) => {
+        setViewingBatchQuery(protocolo);
+        setBatchQueryError(null);
+        setBatchQueryDetails(null);
+        
+        // Check if we already have the data from a recent consultation
+        if (lastConsultedData && lastConsultedData.protocolo === protocolo && lastConsultedData.response) {
+          // Reuse the data if it's available
+          if (lastConsultedData.response.resposta) {
+            setBatchQueryDetails(lastConsultedData.response.resposta);
+            setShowBatchQueryModal(true);
+            setViewingBatchQuery(null);
+            return;
+          }
+        }
+        
+        // If we don't have the data, make a new API call
+        try {
+          const response = await fetch('https://n8n-queue-2-n8n-webhook.igxlaz.easypanel.host/webhook/vctex/consultalote', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ protocolo })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Erro ao consultar detalhes do BatchQuery: ${response.status} ${response.statusText}`);
+          }
+          
+          const data: ConsultaResponse = await response.json();
+          
+          // Store the full response for potential reuse
+          setLastConsultedData({
+            protocolo,
+            response: data
+          });
+          
+          // Extract BatchQueryId details from the response
+          if (data.resposta) {
+            setBatchQueryDetails(data.resposta);
+            setShowBatchQueryModal(true);
+          } else {
+            setBatchQueryError('Informações do BatchQueryId não encontradas na resposta.');
+          }
+        } catch (err) {
+          console.error('Erro ao consultar detalhes do BatchQueryId:', err);
+          setBatchQueryError(err instanceof Error ? err.message : 'Erro ao consultar detalhes do BatchQueryId');
+        } finally {
+          setViewingBatchQuery(null);
+        }
       };
       
       // Calculate items to display based on current page
@@ -249,11 +391,50 @@ import React, { useState, useEffect } from 'react';
                             {protocolo.protocolo}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {/* Placeholder for action buttons - will be implemented in next steps */}
                             <div className="flex justify-end space-x-2">
-                              <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded text-xs">
-                                Ações
-                              </span>
+                              <button
+                                onClick={() => consultarCpfs(protocolo.protocolo)}
+                                disabled={consultingProtocolo === protocolo.protocolo || viewingBatchQuery === protocolo.protocolo}
+                                className={`px-3 py-1 rounded text-xs flex items-center ${
+                                  consultingProtocolo === protocolo.protocolo
+                                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                              >
+                                {consultingProtocolo === protocolo.protocolo ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    Consultando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <List className="h-3 w-3 mr-1" />
+                                    Consultar CPFs
+                                  </>
+                                )}
+                              </button>
+                              
+                              <button
+                                onClick={() => verBatchQueryId(protocolo.protocolo)}
+                                disabled={consultingProtocolo === protocolo.protocolo || viewingBatchQuery === protocolo.protocolo}
+                                className={`px-3 py-1 rounded text-xs flex items-center ${
+                                  viewingBatchQuery === protocolo.protocolo
+                                    ? 'bg-green-100 text-green-400 cursor-not-allowed'
+                                    : 'bg-green-600 text-white hover:bg-green-700'
+                                }`}
+                              >
+                                {viewingBatchQuery === protocolo.protocolo ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    Carregando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    Ver BatchQueryId
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -320,6 +501,190 @@ import React, { useState, useEffect } from 'react';
               </>
             )}
           </div>
+          
+          {/* Modal para exibir os CPFs */}
+          {showCpfsModal && (
+            <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-blue-500 mr-2" />
+                    <h3 className="text-lg font-medium text-gray-800">
+                      CPFs do Protocolo
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowCpfsModal(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto flex-grow">
+                  {consultaError ? (
+                    <div className="bg-red-50 p-4 rounded-lg text-red-700 flex items-center">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      <span>{consultaError}</span>
+                    </div>
+                  ) : consultaResponse && consultaResponse.length > 0 ? (
+                    <>
+                      <div className="flex justify-between items-center mb-4">
+                        <p className="text-sm text-gray-500">
+                          {consultaResponse.length} CPFs encontrados
+                        </p>
+                        <button
+                          onClick={copyCpfsToClipboard}
+                          className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          <Copy className="h-4 w-4 mr-1" />
+                          Copiar todos
+                        </button>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-80 overflow-y-auto">
+                        <ul className="divide-y divide-gray-200">
+                          {consultaResponse.map((cpf, index) => (
+                            <li key={index} className="py-2 flex items-center justify-between">
+                              <span className="text-sm font-mono">{cpf}</span>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(cpf)}
+                                className="text-gray-400 hover:text-gray-600"
+                                title="Copiar CPF"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700 flex items-center">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      <span>Nenhum CPF encontrado para este protocolo.</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+                  <button
+                    onClick={() => setShowCpfsModal(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Modal para exibir os detalhes do BatchQueryId */}
+          {showBatchQueryModal && (
+            <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-green-500 mr-2" />
+                    <h3 className="text-lg font-medium text-gray-800">
+                      Detalhes do BatchQueryId
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowBatchQueryModal(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto flex-grow">
+                  {batchQueryError ? (
+                    <div className="bg-red-50 p-4 rounded-lg text-red-700 flex items-center">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      <span>{batchQueryError}</span>
+                    </div>
+                  ) : batchQueryDetails ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Mensagem</h4>
+                          <p className="text-sm text-gray-600">{batchQueryDetails.message}</p>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">BatchQueryId</h4>
+                          <p className="text-sm font-mono text-gray-600">{batchQueryDetails.batchQueryId}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Limite de Consultas em Lote</h4>
+                          <p className="text-sm text-gray-600">{batchQueryDetails.batchQueriesLimit}</p>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">Consultas Restantes no Mês</h4>
+                          <p className="text-sm text-gray-600">{batchQueryDetails.batchQueriesToBeDoneOnThisMonth}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Lista de BatchQueries Programados para o Fim do Dia
+                        </h4>
+                        {batchQueryDetails.listOfbatchQueriesToBeMadeAtTheEndOfTheDay.length > 0 ? (
+                          <div className="mt-2 max-h-40 overflow-y-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                                    #
+                                  </th>
+                                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                                    ID
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {batchQueryDetails.listOfbatchQueriesToBeMadeAtTheEndOfTheDay.map((id, index) => (
+                                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500">
+                                      {index + 1}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs font-mono text-gray-700">
+                                      {id}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500">Nenhum BatchQuery programado para o fim do dia.</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center items-center py-12">
+                      <RefreshCw className="h-8 w-8 text-green-500 animate-spin" />
+                      <span className="ml-2 text-gray-600">Carregando detalhes...</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+                  <button
+                    onClick={() => setShowBatchQueryModal(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
